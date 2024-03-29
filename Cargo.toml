@@ -2,7 +2,7 @@
 name = "vip_score"
 version = "0.0.1"
 authors = ["InitiaLabs"]
-edition = "2024"
+edition = "2021"
 description = ""
 license = ""
 repository = ""
