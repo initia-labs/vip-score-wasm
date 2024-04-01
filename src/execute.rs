@@ -58,21 +58,14 @@ impl<'a> Contract<'a> {
     ) -> StdResult<Response> {
         self.check_permission(deps.storage, &info.sender)?;
 
-        if stage == 0 {
-            return Err(StdError::generic_err("Stage can not be zero"))
-        };
+        let mut res = Response::new();
 
-        if self.stages.has(deps.storage, stage) {
-            return Ok(Response::new());
-        };
+        let prepare_event = self.prepare_stage_internal(stage, deps.storage)?;
+        if prepare_event.is_some() {
+            res = res.add_event(prepare_event.unwrap());
+        }
 
-        self.stages.save(deps.storage, stage, &StageInfo { stage, total_score: 0, is_finalized: false })?;
-
-        Ok(Response::new().add_event(Event::new("prepare-stage")
-            .add_attributes(vec![
-                ("stage", &stage.to_string()),
-            ]
-        )))
+        Ok(res)
     }
 
     fn finailze_stage(
@@ -111,6 +104,13 @@ impl<'a> Contract<'a> {
         amount: u64,
     ) -> StdResult<Response> {
         self.check_permission(deps.storage, &info.sender)?;
+        let mut res = Response::new();
+
+        let prepare_event = self.prepare_stage_internal(stage, deps.storage)?;
+        if prepare_event.is_some() {
+            res = res.add_event(prepare_event.unwrap());
+        }
+
 
         if !self.stages.has(deps.storage, stage) {
             return Err(StdError::generic_err("Stage not found"));
@@ -143,7 +143,7 @@ impl<'a> Contract<'a> {
 
         let event = generate_update_score_event(&addr, stage, new_score.unwrap(), stage_info.unwrap().total_score);
 
-        Ok(Response::new().add_event(event))
+        Ok(res.add_event(event))
     }
 
     fn decrease_score(
@@ -156,6 +156,12 @@ impl<'a> Contract<'a> {
         amount: u64,
     ) -> StdResult<Response> {
         self.check_permission(deps.storage, &info.sender)?;
+        let mut res = Response::new();
+
+        let prepare_event = self.prepare_stage_internal(stage, deps.storage)?;
+        if prepare_event.is_some() {
+            res = res.add_event(prepare_event.unwrap());
+        }
 
         if !self.stages.has(deps.storage, stage) {
             return Err(StdError::generic_err("Stage not found"));
@@ -195,7 +201,7 @@ impl<'a> Contract<'a> {
         });
 
         let event = generate_update_score_event(&addr, stage, new_score.unwrap(), stage_info.unwrap().total_score);
-        Ok(Response::new().add_event(event))
+        Ok(res.add_event(event))
     }
 
     fn update_score(
@@ -208,9 +214,15 @@ impl<'a> Contract<'a> {
         amount: u64,
     ) -> StdResult<Response> {
         self.check_permission(deps.storage, &info.sender)?;
+        let mut res = Response::new();
+
+        let prepare_event = self.prepare_stage_internal(stage, deps.storage)?;
+        if prepare_event.is_some() {
+            res = res.add_event(prepare_event.unwrap());
+        }
 
         let event = self.update_score_internal(deps.storage, stage, addr, amount)?;
-        Ok(Response::new().add_event(event))
+        Ok(res.add_event(event))
     }
 
     fn update_scores(
@@ -222,12 +234,18 @@ impl<'a> Contract<'a> {
         scores: Vec<(Addr, u64)>,
     ) -> StdResult<Response> {
         self.check_permission(deps.storage, &info.sender)?;
+        let mut res = Response::new();
+
+        let prepare_event = self.prepare_stage_internal(stage, deps.storage)?;
+        if prepare_event.is_some() {
+            res = res.add_event(prepare_event.unwrap());
+        }
 
         let scores_events = scores.iter().map(|(addr, amount)| {
             self.update_score_internal(deps.storage, stage, addr.clone(), *amount).unwrap()
         });
 
-        Ok(Response::new().add_events(scores_events))
+        Ok(res.add_events(scores_events))
     }
 
     fn add_allow_list(
@@ -327,6 +345,28 @@ impl<'a> Contract<'a> {
         }
         
         Ok(())
+    }
+
+    pub fn prepare_stage_internal(
+        &self,
+        stage: u64,
+        storage: &mut dyn Storage,
+    ) -> StdResult<Option<Event>> {
+        if stage == 0 {
+            return Err(StdError::generic_err("Stage can not be zero"))
+        };
+
+        if self.stages.has(storage, stage) {
+            return Ok(Option::None);
+        };
+
+        self.stages.save(storage, stage, &StageInfo { stage, total_score: 0, is_finalized: false })?;
+
+        Ok(Some(Event::new("prepare-stage")
+            .add_attributes(vec![
+                ("stage", &stage.to_string()),
+            ])
+        ))
     }
 }
 
