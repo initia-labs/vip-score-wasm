@@ -53,7 +53,7 @@ pub enum QueryMsg {
   },
   GetScores {
     stage: u64,
-    limit: u8,
+    limit: u64,
     start_after: Option<Addr>
   },
   GetStageInfo {

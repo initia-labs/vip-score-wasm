@@ -12,7 +12,7 @@ impl<'a> Contract<'a> {
         Ok(UserScore { score, stage, addr })
     }
 
-    fn get_scores(&self, deps: Deps, _env: Env, stage: u64, limit: u8, start_after: Option<Addr>) -> StdResult<UserScores> {
+    fn get_scores(&self, deps: Deps, _env: Env, stage: u64, limit: u64, start_after: Option<Addr>) -> StdResult<UserScores> {
         let min = if start_after.is_some() {
             Some(cw_storage_plus::Bound::ExclusiveRaw(user_score_key(start_after.unwrap(), stage)))
         } else {

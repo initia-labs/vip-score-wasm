@@ -153,7 +153,7 @@ Get scores of given stage
 {
   "get_scores": {
     "stage": 123, // stage
-    "limit": 123, // amount of result (max: 255)
+    "limit": 123, // amount of result
     "start_after": "init1..." // optional, where to begin fetching the next batch of results
   }
 }
