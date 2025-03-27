@@ -76,6 +76,7 @@ impl<'a> Contract<'a> {
         stage: u64,
     ) -> StdResult<Response> {
         self.check_permission(deps.storage, &info.sender)?;
+        self.check_previous_stage_finalized(stage, deps.storage)?;
 
         self.stages.update(deps.storage, stage, |stage_info| -> StdResult<_> {
             match stage_info {
@@ -367,6 +368,30 @@ impl<'a> Contract<'a> {
                 ("stage", &stage.to_string()),
             ])
         ))
+    }
+
+    pub fn check_previous_stage_finalized(
+        &self,
+        stage: u64,
+        storage: &mut dyn Storage,
+    ) -> StdResult<()> {
+        // check first stage
+        if !self.init_stage.exists(storage) {
+            self.init_stage.save(storage, &stage).unwrap();
+            return Ok(())
+        }
+
+        // if previous stage doesn't exists
+        if !self.stages.has(storage, stage - 1) {
+            return Err(StdError::NotFound { kind: (stage - 1).to_string() })
+        }
+
+        let stage = self.stages.load(storage, stage - 1);
+        if !stage.unwrap().is_finalized {
+            return Err(StdError::generic_err("Previous stage not finalized"))
+        }
+
+        return Ok(())
     }
 }
 

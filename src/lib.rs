@@ -17,7 +17,6 @@ use super::*;
   use cosmwasm_std::{entry_point, Binary, Deps, Empty};
   use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, StdResult};
 
-
   #[entry_point]
   pub fn instantiate(
     deps: DepsMut,

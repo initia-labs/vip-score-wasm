@@ -6,6 +6,7 @@ edition = "2021"
 description = ""
 license = ""
 repository = ""
+rust-version = "1.81"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
