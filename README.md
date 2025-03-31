@@ -6,25 +6,14 @@ Initialize VIP score
 
 ```json
 {
-  "allow_list": ["init1...", "init1..."] // allow address list that can execute contract msg
+  "allow_list": ["init1...", "init1..."], // allow address list that can execute contract msg
+  "init_stage": 10 // set start stage
 }
 ```
 
 ## ExecuteMsg
 
 All execution messages can only be executed by addresses that are in the allow list.
-
-### `prepare_stage`
-
-Initialize Stage
-
-```json
-{
-  "prepare_stage": {
-    "stage": 123 // stage to initialize
-  }
-}
-```
 
 ### `finalize_stage`
 
