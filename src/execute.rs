@@ -76,7 +76,6 @@ impl<'a> Contract<'a> {
         stage: u64,
     ) -> StdResult<Response> {
         self.check_permission(deps.storage, &info.sender)?;
-        self.check_previous_stage_finalized(stage, deps.storage)?;
 
         self.stages.update(deps.storage, stage, |stage_info| -> StdResult<_> {
             match stage_info {
@@ -353,6 +352,8 @@ impl<'a> Contract<'a> {
         stage: u64,
         storage: &mut dyn Storage,
     ) -> StdResult<Option<Event>> {
+        self.check_previous_stage_finalized(stage, storage)?;
+
         if stage == 0 {
             return Err(StdError::generic_err("Stage can not be zero"))
         };
