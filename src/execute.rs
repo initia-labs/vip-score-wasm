@@ -13,11 +13,13 @@ impl<'a> Contract<'a> {
         _info: MessageInfo,
         msg: InstantiateMsg
     ) -> StdResult<Response> {
+        self.init_stage.save(deps.storage, &msg.init_stage)?;
+        let create_events = self.create_stage_internal(msg.init_stage, deps.storage)?;
         let events = msg.allow_list.iter().map(|addr| {
             self.add_allow_list_internal(deps.storage, addr.clone()).unwrap()
         });
 
-        Ok(Response::new().add_events(events))
+        Ok(Response::new().add_event(create_events).add_events(events))
     }
 
     pub fn execute(
@@ -28,8 +30,6 @@ impl<'a> Contract<'a> {
         msg: ExecuteMsg
     ) -> StdResult<Response> {
         match msg {
-            ExecuteMsg::PrepareStage { stage }
-                => self.prepare_stage(deps, env, info, stage),
             ExecuteMsg::FinalizeStage { stage }
                 => self.finailze_stage(deps, env, info, stage),
             ExecuteMsg::IncreaseScore { addr, stage, amount }
@@ -48,26 +48,7 @@ impl<'a> Contract<'a> {
     }
 }
 
-impl<'a> Contract<'a> {
-    fn prepare_stage(
-        &self,
-        deps: DepsMut,
-        _env: Env,
-        info: MessageInfo,
-        stage: u64,
-    ) -> StdResult<Response> {
-        self.check_permission(deps.storage, &info.sender)?;
-
-        let mut res = Response::new();
-
-        let prepare_event = self.prepare_stage_internal(stage, deps.storage)?;
-        if prepare_event.is_some() {
-            res = res.add_event(prepare_event.unwrap());
-        }
-
-        Ok(res)
-    }
-
+impl<'a> Contract<'a> {    
     fn finailze_stage(
         &self,
         deps: DepsMut,
@@ -87,11 +68,16 @@ impl<'a> Contract<'a> {
             }
         })?;
 
-        Ok(Response::new().add_event(Event::new("finalize-stage")
-        .add_attributes(vec![
-            ("stage", &stage.to_string()),
-        ]
-    )))
+        let create_event = self.create_stage_internal(stage + 1, deps.storage)?;
+
+        Ok(Response::new()
+            .add_event(Event::new("finalize-stage")
+                .add_attributes(vec![
+                ("stage", &stage.to_string()),
+                ])
+            )
+            .add_event(create_event)
+        )
     }
 
     fn increase_score(
@@ -104,13 +90,7 @@ impl<'a> Contract<'a> {
         amount: u64,
     ) -> StdResult<Response> {
         self.check_permission(deps.storage, &info.sender)?;
-        let mut res = Response::new();
-
-        let prepare_event = self.prepare_stage_internal(stage, deps.storage)?;
-        if prepare_event.is_some() {
-            res = res.add_event(prepare_event.unwrap());
-        }
-
+        let res = Response::new();
 
         if !self.stages.has(deps.storage, stage) {
             return Err(StdError::generic_err("Stage not found"));
@@ -156,12 +136,7 @@ impl<'a> Contract<'a> {
         amount: u64,
     ) -> StdResult<Response> {
         self.check_permission(deps.storage, &info.sender)?;
-        let mut res = Response::new();
-
-        let prepare_event = self.prepare_stage_internal(stage, deps.storage)?;
-        if prepare_event.is_some() {
-            res = res.add_event(prepare_event.unwrap());
-        }
+        let res = Response::new();
 
         if !self.stages.has(deps.storage, stage) {
             return Err(StdError::generic_err("Stage not found"));
@@ -214,12 +189,7 @@ impl<'a> Contract<'a> {
         amount: u64,
     ) -> StdResult<Response> {
         self.check_permission(deps.storage, &info.sender)?;
-        let mut res = Response::new();
-
-        let prepare_event = self.prepare_stage_internal(stage, deps.storage)?;
-        if prepare_event.is_some() {
-            res = res.add_event(prepare_event.unwrap());
-        }
+        let res = Response::new();
 
         let event = self.update_score_internal(deps.storage, stage, addr, amount)?;
         Ok(res.add_event(event))
@@ -234,12 +204,7 @@ impl<'a> Contract<'a> {
         scores: Vec<(Addr, u64)>,
     ) -> StdResult<Response> {
         self.check_permission(deps.storage, &info.sender)?;
-        let mut res = Response::new();
-
-        let prepare_event = self.prepare_stage_internal(stage, deps.storage)?;
-        if prepare_event.is_some() {
-            res = res.add_event(prepare_event.unwrap());
-        }
+        let res = Response::new();
 
         let scores_events = scores.iter().map(|(addr, amount)| {
             self.update_score_internal(deps.storage, stage, addr.clone(), *amount).unwrap()
@@ -347,52 +312,22 @@ impl<'a> Contract<'a> {
         Ok(())
     }
 
-    pub fn prepare_stage_internal(
+    pub fn create_stage_internal(
         &self,
         stage: u64,
         storage: &mut dyn Storage,
-    ) -> StdResult<Option<Event>> {
-        self.check_previous_stage_finalized(stage, storage)?;
-
+    ) -> StdResult<Event> {
         if stage == 0 {
             return Err(StdError::generic_err("Stage can not be zero"))
         };
 
-        if self.stages.has(storage, stage) {
-            return Ok(Option::None);
-        };
-
         self.stages.save(storage, stage, &StageInfo { stage, total_score: 0, is_finalized: false })?;
 
-        Ok(Some(Event::new("prepare-stage")
+        Ok(Event::new("create-stage")
             .add_attributes(vec![
                 ("stage", &stage.to_string()),
             ])
-        ))
-    }
-
-    pub fn check_previous_stage_finalized(
-        &self,
-        stage: u64,
-        storage: &mut dyn Storage,
-    ) -> StdResult<()> {
-        // check first stage
-        if !self.init_stage.exists(storage) {
-            self.init_stage.save(storage, &stage).unwrap();
-            return Ok(())
-        }
-
-        // if previous stage doesn't exists
-        if !self.stages.has(storage, stage - 1) {
-            return Err(StdError::NotFound { kind: (stage - 1).to_string() })
-        }
-
-        let stage = self.stages.load(storage, stage - 1);
-        if !stage.unwrap().is_finalized {
-            return Err(StdError::generic_err("Previous stage not finalized"))
-        }
-
-        return Ok(())
+        )
     }
 }
 
